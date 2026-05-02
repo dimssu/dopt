@@ -1,140 +1,144 @@
 /**
- * Browser-side API client. Uses a baked demo session for the MVP — real auth
- * (Auth.js or SAML/OIDC) lands in M4. The session string format mirrors the
- * dev-fallback in apps/api/src/middleware/auth.ts.
+ * Demo "API" — a thin sync wrapper over the localStorage store, plus one async
+ * call to /api/notes/generate for the model-backed (or offline-fallback) note
+ * generation. No server, no auth, no network beyond the generate route.
  *
- *   <userId>:<tenantId>:<comma-separated roles>:<sessionId>
- *
- * The IDs match the deterministic UUIDs written by packages/db/prisma/seed.ts.
+ * The page-level call sites match the previous fetch-based shape so the UI
+ * code didn't have to change much.
  */
 
-const DEMO_SESSION =
-  '22222222-2222-2222-2222-222222222222:11111111-1111-1111-1111-111111111111:clinician:demo-session-1';
+import { store } from './store';
+import type {
+  DemoEncounter,
+  DemoNote,
+  DemoTranscriptSegment,
+} from './seed';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+export type ApiEncounter = DemoEncounter & {
+  patient?: { id: string; mrn: string; givenName: string; familyName: string; sex: string };
+  clinician?: { id: string; name: string; email: string };
+};
+export type ApiTranscriptSegment = DemoTranscriptSegment;
+export type ApiNote = DemoNote;
+export type ApiNoteSentence = DemoNote['sections'][number]['sentences'][number];
+export type ApiNoteSection = DemoNote['sections'][number];
+export type ApiCodeSuggestion = DemoNote['codes'][number];
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      'content-type': 'application/json',
-      'x-clinical-session': DEMO_SESSION,
-      ...(init?.headers ?? {}),
-    },
-    cache: 'no-store',
-  });
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`API ${res.status}: ${body || res.statusText}`);
-  }
-  return res.json() as Promise<T>;
-}
-
-export interface ApiPatient {
-  id: string;
-  mrn: string;
-  givenName: string;
-  familyName: string;
-  birthDate: string;
-  sex: 'female' | 'male' | 'other' | 'unknown';
-}
-
-export interface ApiUser {
-  id: string;
-  name: string;
-  email: string;
-  specialty: string | null;
-}
-
-export interface ApiEncounter {
-  id: string;
-  patientId: string;
-  clinicianId: string;
-  status: 'scheduled' | 'in_progress' | 'awaiting_review' | 'signed' | 'amended' | 'cancelled';
-  mode: 'in_person' | 'telehealth' | 'home_visit';
-  scheduledAt: string | null;
-  startedAt: string | null;
-  endedAt: string | null;
-  reasonForVisit: string | null;
-  patient?: ApiPatient;
-  clinician?: ApiUser;
-}
-
-export interface ApiTranscriptSegment {
-  id: string;
-  encounterId: string;
-  speakerLabel: string;
-  speakerRole: 'clinician' | 'patient' | 'caregiver' | 'other';
-  startMs: number;
-  endMs: number;
-  text: string;
-  confidence: number;
-  isFinal: boolean;
-}
-
-export interface ApiNoteSentence {
-  id: string;
-  text: string;
-  citations: Array<{ segmentId: string; startMs: number; endMs: number }>;
-}
-
-export interface ApiNoteSection {
-  id: string;
-  key: string;
-  title: string;
-  sentences: ApiNoteSentence[];
-  manualEdits: boolean;
-}
-
-export interface ApiCodeSuggestion {
-  system: 'icd10' | 'cpt' | 'snomed' | 'rxnorm';
-  code: string;
-  display: string;
-  confidence: number;
-}
-
-export interface ApiNote {
-  id: string;
-  encounterId: string;
-  format: 'soap' | 'hp' | 'progress' | 'discharge' | 'referral' | 'custom';
-  status: 'draft' | 'awaiting_review' | 'signed' | 'amended';
-  sections: ApiNoteSection[];
-  codes: ApiCodeSuggestion[];
-  signedAt: string | null;
-  signedById: string | null;
-  generatedAt: string;
+function withRelated(enc: DemoEncounter): ApiEncounter {
+  const snapshot = store.snapshot();
+  const patient = snapshot.patients.find((p) => p.id === enc.patientId);
+  const clinician = snapshot.clinician.id === enc.clinicianId ? snapshot.clinician : null;
+  return {
+    ...enc,
+    patient: patient
+      ? {
+          id: patient.id,
+          mrn: patient.mrn,
+          givenName: patient.givenName,
+          familyName: patient.familyName,
+          sex: patient.sex,
+        }
+      : undefined,
+    clinician: clinician
+      ? { id: clinician.id, name: clinician.name, email: clinician.email }
+      : undefined,
+  };
 }
 
 export const api = {
-  listEncounters: () => request<{ data: ApiEncounter[] }>('/v1/encounters'),
-  getEncounter: (id: string) => request<ApiEncounter>(`/v1/encounters/${id}`),
-  startEncounter: (id: string) =>
-    request<ApiEncounter>(`/v1/encounters/${id}/start`, { method: 'POST', body: '{}' }),
-  endEncounter: (id: string) =>
-    request<ApiEncounter>(`/v1/encounters/${id}/end`, { method: 'POST', body: '{}' }),
+  reset(): void {
+    store.reset();
+  },
 
-  listTranscript: (encounterId: string) =>
-    request<{ data: ApiTranscriptSegment[] }>(`/v1/transcripts/${encounterId}`),
-  bulkTranscript: (
+  listEncounters(): { data: ApiEncounter[] } {
+    const list = store
+      .listEncounters()
+      .map(withRelated)
+      .sort((a, b) => {
+        const at = a.startedAt ?? a.scheduledAt ?? '';
+        const bt = b.startedAt ?? b.scheduledAt ?? '';
+        return bt.localeCompare(at);
+      });
+    return { data: list };
+  },
+
+  getEncounter(id: string): ApiEncounter {
+    const enc = store.getEncounter(id);
+    if (!enc) throw new Error('Encounter not found');
+    return withRelated(enc);
+  },
+
+  startEncounter(id: string): ApiEncounter {
+    const enc = store.startEncounter(id);
+    if (!enc) throw new Error('Encounter not found');
+    return withRelated(enc);
+  },
+
+  endEncounter(id: string): ApiEncounter {
+    const enc = store.endEncounter(id);
+    if (!enc) throw new Error('Encounter not found');
+    return withRelated(enc);
+  },
+
+  listTranscript(encounterId: string): { data: ApiTranscriptSegment[] } {
+    return { data: store.listTranscript(encounterId).sort((a, b) => a.startMs - b.startMs) };
+  },
+
+  bulkTranscript(
     encounterId: string,
-    segments: Array<Omit<ApiTranscriptSegment, 'id' | 'encounterId' | 'isFinal' | 'confidence'> & {
-      isFinal?: boolean;
-      confidence?: number;
-    }>,
+    segments: Array<Omit<ApiTranscriptSegment, 'id' | 'tenantId' | 'encounterId'>>,
     replace = true,
-  ) =>
-    request<{ count: number }>('/v1/transcripts/bulk', {
-      method: 'POST',
-      body: JSON.stringify({ encounterId, segments, replace }),
-    }),
+  ): { count: number } {
+    const created = store.bulkTranscript(encounterId, segments, replace);
+    return { count: created.length };
+  },
 
-  generateNote: (encounterId: string) =>
-    request<ApiNote>('/v1/notes/generate', {
+  getNoteByEncounter(encounterId: string): ApiNote | null {
+    return store.getNoteByEncounter(encounterId);
+  },
+
+  async generateNote(encounterId: string): Promise<ApiNote> {
+    const transcript = store.listTranscript(encounterId).sort((a, b) => a.startMs - b.startMs);
+    if (transcript.length === 0) {
+      throw new Error('Encounter has no transcript yet.');
+    }
+    const res = await fetch('/api/notes/generate', {
       method: 'POST',
-      body: JSON.stringify({ encounterId, format: 'soap' }),
-    }),
-  getNoteByEncounter: (encounterId: string) =>
-    request<ApiNote>(`/v1/notes/encounter/${encounterId}`),
-  signNote: (id: string) =>
-    request<ApiNote>(`/v1/notes/${id}/sign`, { method: 'POST', body: '{}' }),
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        format: 'soap',
+        transcript: transcript.map((s) => ({
+          id: s.id,
+          speakerLabel: s.speakerLabel,
+          startMs: s.startMs,
+          endMs: s.endMs,
+          text: s.text,
+        })),
+      }),
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(`Generation failed (${res.status}): ${detail || res.statusText}`);
+    }
+    const generated = (await res.json()) as Pick<ApiNote, 'sections' | 'codes'>;
+    const note = store.saveNote({
+      encounterId,
+      format: 'soap',
+      status: 'draft',
+      templateId: null,
+      sections: generated.sections,
+      codes: generated.codes,
+      signedById: null,
+      signedAt: null,
+      generatedAt: new Date().toISOString(),
+    });
+    store.endEncounter(encounterId);
+    return note;
+  },
+
+  signNote(id: string): ApiNote {
+    const note = store.signNote(id);
+    if (!note) throw new Error('Note not found');
+    return note;
+  },
 };

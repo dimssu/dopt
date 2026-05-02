@@ -21,7 +21,11 @@ export default function CapturePage({ params }: { params: Promise<{ id: string }
   const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    api.getEncounter(encounterId).then(setEncounter).catch((e) => setError(e.message));
+    try {
+      setEncounter(api.getEncounter(encounterId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Encounter not found');
+    }
   }, [encounterId]);
 
   useEffect(() => {
@@ -40,7 +44,11 @@ export default function CapturePage({ params }: { params: Promise<{ id: string }
     startedAtRef.current = Date.now() - elapsedMs;
     setState('playing');
     if (encounter && encounter.status !== 'in_progress') {
-      api.startEncounter(encounterId).catch(() => {});
+      try {
+        api.startEncounter(encounterId);
+      } catch {
+        /* non-fatal in demo */
+      }
     }
     tickerRef.current = setInterval(() => {
       const now = Date.now() - (startedAtRef.current ?? 0);
@@ -66,16 +74,19 @@ export default function CapturePage({ params }: { params: Promise<{ id: string }
     setState('finalising');
     setError(null);
     try {
-      await api.bulkTranscript(encounterId, MOCK_CONVERSATION.map((s) => ({
-        speakerLabel: s.speakerLabel,
-        speakerRole: s.speakerRole,
-        startMs: s.startMs,
-        endMs: s.endMs,
-        text: s.text,
-        isFinal: true,
-        confidence: 0.94,
-      })), true);
-      await api.endEncounter(encounterId);
+      api.bulkTranscript(
+        encounterId,
+        MOCK_CONVERSATION.map((s) => ({
+          speakerLabel: s.speakerLabel,
+          speakerRole: s.speakerRole,
+          startMs: s.startMs,
+          endMs: s.endMs,
+          text: s.text,
+          isFinal: true,
+          confidence: 0.94,
+        })),
+        true,
+      );
       const note = await api.generateNote(encounterId);
       router.push(`/app/encounter/${encounterId}/review?note=${note.id}`);
     } catch (e) {

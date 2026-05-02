@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Badge, Button, Card, EmptyState } from '@/components/ui';
 
@@ -10,12 +10,23 @@ export default function Dashboard() {
   const [encounters, setEncounters] = useState<ApiEncounter[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    api
-      .listEncounters()
-      .then((res) => setEncounters(res.data))
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load encounters'));
+  const refresh = useCallback(() => {
+    try {
+      setEncounters(api.listEncounters().data);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load encounters');
+    }
   }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  function resetDemo() {
+    api.reset();
+    refresh();
+  }
 
   const awaitingReview = (encounters ?? []).filter(
     (e) => e.status === 'awaiting_review' || e.status === 'signed',
@@ -35,12 +46,14 @@ export default function Dashboard() {
               : 'Loading…'}
           </p>
         </div>
+        <Button variant="secondary" size="sm" onClick={resetDemo}>
+          Reset demo
+        </Button>
       </header>
 
       {error && (
         <div className="mt-6 rounded-md border border-[oklch(80%_0.1_25)] bg-[oklch(98%_0.04_25)] px-4 py-3 text-[13px] text-[oklch(40%_0.18_25)]">
-          {error}. Check that the API is running on port 3001 and that the database is seeded
-          (<code>pnpm db:seed</code>).
+          {error}
         </div>
       )}
 

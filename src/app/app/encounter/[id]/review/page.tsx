@@ -28,17 +28,13 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
   const segmentRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
-    Promise.all([
-      api.getEncounter(encounterId),
-      api.listTranscript(encounterId),
-      api.getNoteByEncounter(encounterId).catch(() => null),
-    ])
-      .then(([enc, tx, n]) => {
-        setEncounter(enc);
-        setTranscript(tx.data);
-        setNote(n);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load encounter'));
+    try {
+      setEncounter(api.getEncounter(encounterId));
+      setTranscript(api.listTranscript(encounterId).data);
+      setNote(api.getNoteByEncounter(encounterId));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to load encounter');
+    }
   }, [encounterId]);
 
   const onCitation = useCallback((segmentId: string) => {
@@ -60,12 +56,11 @@ export default function ReviewPage({ params }: { params: Promise<{ id: string }>
     }
   }
 
-  async function sign() {
+  function sign() {
     if (!note) return;
     setSigning(true);
     try {
-      const signed = await api.signNote(note.id);
-      setNote(signed);
+      setNote(api.signNote(note.id));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Sign failed');
     } finally {
