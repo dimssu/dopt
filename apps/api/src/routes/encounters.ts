@@ -38,6 +38,18 @@ export const encounters = new Hono()
     });
     return c.json(created, 201);
   })
+  .get('/:id', async (c) => {
+    const auth = c.get('auth');
+    requirePerm(auth, 'encounter:read');
+    const id = c.req.param('id');
+    const db = c.get('db');
+    const enc = await db.encounter.findUnique({
+      where: { id },
+      include: { patient: true, clinician: true },
+    });
+    if (!enc) return c.json({ error: 'not_found' }, 404);
+    return c.json(enc);
+  })
   .post('/:id/start', async (c) => {
     const auth = c.get('auth');
     requirePerm(auth, 'encounter:update');
