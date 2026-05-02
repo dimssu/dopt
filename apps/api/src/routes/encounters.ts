@@ -28,6 +28,7 @@ export const encounters = new Hono()
     const db = c.get('db');
     const created = await db.encounter.create({
       data: {
+        tenantId: auth.tenantId,
         patientId: body.patientId,
         clinicianId: body.clinicianId,
         mode: body.mode,

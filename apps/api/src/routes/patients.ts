@@ -26,7 +26,7 @@ export const patients = new Hono()
     const body = PatientCreate.parse(await c.req.json());
     const db = c.get('db');
     const created = await db.patient.create({
-      data: { ...body, birthDate: new Date(body.birthDate) },
+      data: { ...body, tenantId: auth.tenantId, birthDate: new Date(body.birthDate) },
     });
     return c.json(created, 201);
   })

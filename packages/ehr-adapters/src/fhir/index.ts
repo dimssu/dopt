@@ -6,7 +6,7 @@ import type { Encounter, Note, Patient } from '@clinical-notes/types';
  * the spec-compliant pieces and layer their quirks on top.
  */
 export class FHIRAdapter implements EHRAdapter {
-  readonly kind = 'fhir';
+  readonly kind: string = 'fhir';
 
   constructor(private readonly config: AdapterConfig) {}
 

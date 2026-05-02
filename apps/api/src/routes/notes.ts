@@ -28,6 +28,7 @@ export const notes = new Hono()
 
     const note = await db.note.create({
       data: {
+        tenantId: auth.tenantId,
         encounterId: body.encounterId,
         format: 'soap',
         status: 'draft',

@@ -59,6 +59,9 @@ export function auditExtension(ctx: TenantContext) {
           }
 
           const resource = AUDITED_MODELS[model as keyof typeof AUDITED_MODELS];
+          if (!resource) {
+            return result;
+          }
           const resourceId = extractResourceId(result, args);
           if (!resourceId) {
             return result;
@@ -98,8 +101,11 @@ export function auditExtension(ctx: TenantContext) {
       const id = (result as Record<string, unknown>).id;
       return typeof id === 'string' ? id : null;
     }
-    if (Array.isArray(result) && result.length === 1 && typeof result[0]?.id === 'string') {
-      return result[0].id;
+    if (Array.isArray(result) && result.length === 1) {
+      const first = result[0] as { id?: unknown } | undefined;
+      if (first && typeof first.id === 'string') {
+        return first.id;
+      }
     }
     if (args && typeof args === 'object' && 'where' in (args as Record<string, unknown>)) {
       const where = (args as { where?: Record<string, unknown> }).where;

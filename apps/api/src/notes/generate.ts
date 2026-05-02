@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { randomUUID } from 'node:crypto';
 
-import type { TranscriptSegment } from '@prisma/client';
+import type { TranscriptSegment } from '@clinical-notes/db';
 
 import { SOAP_SYSTEM_PROMPT } from './prompts/soap.js';
 
@@ -31,13 +31,16 @@ export async function generateSoap(transcript: TranscriptSegment[]): Promise<Gen
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   const userMessage = buildUserMessage(transcript);
+  // SDK 0.32 hasn't surfaced cache_control on TextBlockParam in its public types
+  // yet; the runtime accepts it. Cast through unknown until we upgrade the SDK.
+  const systemForRequest = [
+    { type: 'text', text: SOAP_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
+  ] as unknown as string;
   const response = await client.messages.create({
     model: process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-6',
     max_tokens: 4096,
     temperature: 0.2,
-    system: [
-      { type: 'text', text: SOAP_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
-    ],
+    system: systemForRequest,
     messages: [{ role: 'user', content: userMessage }],
   });
 

@@ -36,23 +36,36 @@ export class LLMClient {
   }
 
   async complete(req: LLMRequest): Promise<LLMResponse> {
+    // SDK 0.32 hasn't pulled cache_control onto TextBlockParam in its public
+    // types yet; the runtime accepts it. Cast through `unknown` to keep the
+    // call sites readable. Drops when we upgrade the SDK.
+    const systemForRequest = req.cacheControl
+      ? ([
+          { type: 'text', text: req.system, cache_control: { type: 'ephemeral' } },
+        ] as unknown as string)
+      : req.system;
+
     const res = await this.anthropic.messages.create({
       model: this.opts.providers.llmModel,
       max_tokens: req.maxTokens ?? 4096,
       temperature: req.temperature ?? 0.2,
-      system: req.cacheControl
-        ? [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral' } }]
-        : req.system,
+      system: systemForRequest,
       messages: req.messages.map((m) => ({ role: m.role, content: m.content })),
     });
     const textBlock = res.content.find((b) => b.type === 'text');
+    const usage = res.usage as {
+      input_tokens: number;
+      output_tokens: number;
+      cache_read_input_tokens?: number;
+      cache_creation_input_tokens?: number;
+    };
     return {
       text: textBlock && textBlock.type === 'text' ? textBlock.text : '',
       usage: {
-        input: res.usage.input_tokens,
-        output: res.usage.output_tokens,
-        cacheRead: res.usage.cache_read_input_tokens ?? 0,
-        cacheCreate: res.usage.cache_creation_input_tokens ?? 0,
+        input: usage.input_tokens,
+        output: usage.output_tokens,
+        cacheRead: usage.cache_read_input_tokens ?? 0,
+        cacheCreate: usage.cache_creation_input_tokens ?? 0,
       },
       model: res.model,
     };

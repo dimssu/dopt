@@ -44,6 +44,7 @@ export const transcripts = new Hono()
       body.segments.map((s) =>
         db.transcriptSegment.create({
           data: {
+            tenantId: auth.tenantId,
             encounterId: body.encounterId,
             speakerLabel: s.speakerLabel,
             speakerRole: s.speakerRole,
