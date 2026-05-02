@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "updated_at": "2026-05-02T00:00:00Z",
+  "milestones": [
+    { "id": "M0", "name": "Foundations", "status": "in_progress", "owner": "orchestrator" },
+    { "id": "M1", "name": "Domain & Data", "status": "pending", "owner": "backend-engineer" },
+    { "id": "M2", "name": "Capture & Transcription", "status": "pending", "owner": "ml-engineer" },
+    { "id": "M3", "name": "Note Generation & Review", "status": "pending", "owner": "ml-engineer" },
+    { "id": "M4", "name": "Tenant Config & Admin", "status": "pending", "owner": "backend-engineer" },
+    { "id": "M5", "name": "Integrations & Webhooks", "status": "pending", "owner": "integrations-engineer" },
+    { "id": "M6", "name": "Compliance & Audit", "status": "pending", "owner": "compliance-officer" },
+    { "id": "M7", "name": "Polish, Docs, Demo", "status": "pending", "owner": "docs-writer" }
+  ],
+  "tasks": [],
+  "handoffs": []
+}
