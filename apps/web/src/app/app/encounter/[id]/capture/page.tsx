@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { use, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button, Badge, Card, TranscriptBubble } from '@clinical-notes/ui';
 
@@ -9,7 +9,8 @@ import { MOCK_CONVERSATION, type MockSegment } from '@/lib/mock-conversation';
 
 type CaptureState = 'idle' | 'playing' | 'paused' | 'finalising';
 
-export default function CapturePage({ params }: { params: { id: string } }) {
+export default function CapturePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: encounterId } = use(params);
   const router = useRouter();
   const [encounter, setEncounter] = useState<ApiEncounter | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -20,8 +21,8 @@ export default function CapturePage({ params }: { params: { id: string } }) {
   const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    api.getEncounter(params.id).then(setEncounter).catch((e) => setError(e.message));
-  }, [params.id]);
+    api.getEncounter(encounterId).then(setEncounter).catch((e) => setError(e.message));
+  }, [encounterId]);
 
   useEffect(() => {
     return () => {
@@ -39,7 +40,7 @@ export default function CapturePage({ params }: { params: { id: string } }) {
     startedAtRef.current = Date.now() - elapsedMs;
     setState('playing');
     if (encounter && encounter.status !== 'in_progress') {
-      api.startEncounter(params.id).catch(() => {});
+      api.startEncounter(encounterId).catch(() => {});
     }
     tickerRef.current = setInterval(() => {
       const now = Date.now() - (startedAtRef.current ?? 0);
@@ -65,7 +66,7 @@ export default function CapturePage({ params }: { params: { id: string } }) {
     setState('finalising');
     setError(null);
     try {
-      await api.bulkTranscript(params.id, MOCK_CONVERSATION.map((s) => ({
+      await api.bulkTranscript(encounterId, MOCK_CONVERSATION.map((s) => ({
         speakerLabel: s.speakerLabel,
         speakerRole: s.speakerRole,
         startMs: s.startMs,
@@ -74,9 +75,9 @@ export default function CapturePage({ params }: { params: { id: string } }) {
         isFinal: true,
         confidence: 0.94,
       })), true);
-      await api.endEncounter(params.id);
-      const note = await api.generateNote(params.id);
-      router.push(`/app/encounter/${params.id}/review?note=${note.id}`);
+      await api.endEncounter(encounterId);
+      const note = await api.generateNote(encounterId);
+      router.push(`/app/encounter/${encounterId}/review?note=${note.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to finalise encounter');
       setState('paused');

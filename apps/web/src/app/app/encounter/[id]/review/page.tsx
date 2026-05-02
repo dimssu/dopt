@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { use, useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   Badge,
@@ -17,7 +17,8 @@ import {
   type ApiTranscriptSegment,
 } from '@/lib/api';
 
-export default function ReviewPage({ params }: { params: { id: string } }) {
+export default function ReviewPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: encounterId } = use(params);
   const [encounter, setEncounter] = useState<ApiEncounter | null>(null);
   const [transcript, setTranscript] = useState<ApiTranscriptSegment[]>([]);
   const [note, setNote] = useState<ApiNote | null>(null);
@@ -28,9 +29,9 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     Promise.all([
-      api.getEncounter(params.id),
-      api.listTranscript(params.id),
-      api.getNoteByEncounter(params.id).catch(() => null),
+      api.getEncounter(encounterId),
+      api.listTranscript(encounterId),
+      api.getNoteByEncounter(encounterId).catch(() => null),
     ])
       .then(([enc, tx, n]) => {
         setEncounter(enc);
@@ -38,7 +39,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
         setNote(n);
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load encounter'));
-  }, [params.id]);
+  }, [encounterId]);
 
   const onCitation = useCallback((segmentId: string) => {
     setHighlightedSegmentId(segmentId);
@@ -52,7 +53,7 @@ export default function ReviewPage({ params }: { params: { id: string } }) {
     if (note) return;
     setError(null);
     try {
-      const fresh = await api.generateNote(params.id);
+      const fresh = await api.generateNote(encounterId);
       setNote(fresh);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Generation failed');
