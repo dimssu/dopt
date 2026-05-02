@@ -4,10 +4,10 @@ Roughly three minutes, suitable for a stakeholder walk-through, screen recording
 
 ## Setup checklist
 
-- [ ] `pnpm dev` is running and you can reach `http://localhost:3000`.
-- [ ] The database is seeded — the dashboard shows *Avery Bhatt* under Awaiting review and *Theo Okonkwo* under Scheduled.
+- [ ] `pnpm dev` is running and you can reach `http://localhost:3000` (or open the deployed Vercel URL — same demo).
+- [ ] If a previous session left state behind, click *Reset demo* on the dashboard so the seed is fresh: *Avery Bhatt* under Awaiting review and *Theo Okonkwo* under Scheduled.
 - [ ] Your terminal is hidden or de-cluttered.
-- [ ] If you want the model-generated note rather than the offline fallback, `ANTHROPIC_API_KEY` is set in `.env`.
+- [ ] If you want model-generated notes rather than the deterministic offline fallback, `ANTHROPIC_API_KEY` is set (in `.env.local` for local dev, or Vercel env for the deploy).
 
 ## Talk track
 
@@ -59,11 +59,11 @@ Review screen loads with the generated note.
 
 ### Beat 5 — wrap (20 s)
 
-> "Behind that flow there's per-tenant configuration — branding, specialty templates, compliance posture, EHR integration — that we haven't shown today. There's a hash-chained audit trail of every PHI read and write, a data-residency router that keeps a tenant's traffic in the region they bought in, and adapters to push the signed note to Epic or Cerner via FHIR. That's the rest of the road map."
+> "Today's demo is the spine of the product: capture, generate, review, sign. The production build wraps it in per-tenant configuration, BAA-ready compliance posture, and EHR integration over FHIR — none of which is visible in this two-minute flow. Hit *Reset demo* to give the next person the same starting point."
 
 ## Talking points if asked
 
-- **"Is this HIPAA compliant?"** The architecture is BAA-ready: encryption at rest and in transit, hash-chained audit, per-tenant data residency, configurable retention, RBAC. Compliance is a posture you sign, not a switch — see `docs/compliance/` for the control mapping.
-- **"What's the model?"** Anthropic Claude (configurable per tenant). Provider routing respects data residency and is gated by an allow-list maintained by the compliance officer.
-- **"Why the offline fallback?"** The MVP runs without an API key so demos and CI don't depend on a live model. The fallback note is hand-crafted against the seeded transcript and points at real seeded segments.
-- **"How does it integrate with our EHR?"** FHIR R4 round-trip works against the included HAPI sandbox. Vendor adapters (Epic, Cerner, athenahealth, DrChrono) share the FHIR canonical mapping and override the auth and quirky endpoints. Sandbox round-trip in M5.
+- **"Is this HIPAA compliant?"** Today's demo is not a production system — it stores everything in browser localStorage and has no auth. The product as designed is BAA-ready: encryption at rest and in transit, hash-chained audit, per-tenant data residency, configurable retention, RBAC. Compliance is a posture you sign, not a switch.
+- **"What's the model?"** Anthropic Claude. The deployed demo can run with or without a key — set `ANTHROPIC_API_KEY` in Vercel env to use the real model; without it, the offline fallback returns a deterministic note tied to the transcript so the demo is always live.
+- **"Why the offline fallback?"** So a fork or a preview build doesn't need a live API key to demo. The fallback is hand-crafted against the seed; for fresh capture flows it falls back to keyword and positional cues so citations still resolve.
+- **"How does it integrate with our EHR?"** Not part of this demo. The production target is FHIR R4 (canonical) plus vendor adapters for Epic, Cerner, athenahealth, and DrChrono.
