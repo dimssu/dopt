@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  node:
+  ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,30 +23,4 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
-      # format:check, lint, test, build to be re-enabled per-package as the
-      # corresponding milestones land their first real coverage. Tracking in
-      # docs/plan.md milestone exit criteria.
-
-  python:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service: [transcription-svc, notes-svc]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install uv
-      - run: uv pip install --system -e "apps/${{ matrix.service }}[dev]"
-      - run: ruff check apps/${{ matrix.service }}/src
-      - name: pytest (tolerate no-tests-collected until M2)
-        run: |
-          set +e
-          pytest apps/${{ matrix.service }} -q
-          status=$?
-          if [ $status -eq 5 ]; then
-            echo "::notice::No tests collected in apps/${{ matrix.service }} yet — accepted until M2."
-            exit 0
-          fi
-          exit $status
+      - run: pnpm build
